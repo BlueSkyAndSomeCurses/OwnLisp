@@ -42,10 +42,10 @@ int main(int argc, char** argv) {
     "                                                     \ 
       letter    :  /aba*/ | /a*ba*/ ;                               \
       word      : /pit/ | /pot/ | /respite/ ;            \
-      number    : /-?[0-9]+/ ;                            \
+      number    : /-?[0-9]+/ | /-?[0-9]*[.][0-9]+/ ;                            \
       operator  : '+' | '-' | '*' | '/' | '%' | /add/ | /sub/ | /mul/ | /div/ ;                 \
-      expr      : /<number>'.'<number>/ | <number> | '(' <operator> <expr>+ ')' ; \
-      lispatron : /^/ <operator> <expr>+ | <letter>+ | <word> /$/ ;            \
+      expr      :  <number> | '(' <operator> <expr>+ ')' ; \
+      lispatron : /^/ <operator> <expr>+ | <letter>+ | <word> | <number> <operator> <number> | <operator> <number> /$/ ;            \
     ",
   Letter, Word, Number, Operator, Expr, Lispatron);
 
