@@ -41,6 +41,22 @@ long eval_op(long x, char* op, long y) {
   if (strcmp(op, "-")==0) return x-y;
   if (strcmp(op, "*")==0) return x*y;
   if (strcmp(op, "/")==0) return x/y;
+  if (strcmp(op, "%")==0) return x%y;
+  if (strcmp(op, "^")==0) {
+    long res = 1;
+    for (int i = 0; i<y; ++i) {
+      res *= x; 
+    }
+    return res;
+  }
+  if (strcmp(op, "max")==0) {
+    if (x>y) return x;
+    else return y;
+  }
+  if (strcmp(op, "min")==0) {
+    if (x<y) return x;
+    else return y;
+  }
   return 0;
 }
 
@@ -56,6 +72,7 @@ long eval(mpc_ast_t* t) {
 
   long x = eval(t->children[2]);
 
+  if (t->children_num==4) return -x;
 
   int i = 3;
   while(strstr(t->children[i]->tag, "expr")) {
@@ -76,11 +93,11 @@ int main(int argc, char** argv) {
 
   //define them with the following language
   mpca_lang(MPCA_LANG_DEFAULT,
-    "                                                      \ 
-      number    : /-?[0-9]+/  ;                            \
-      operator  : '+' | '-' | '*' | '/' ;                  \
-      expr      : <number>  | '(' <operator> <expr>+ ')' ; \
-      lispatron : /^/ <operator> <expr>+ /$/ ;             \
+    "                                                                      \ 
+      number    : /-?[0-9]+/  ;                                            \
+      operator  : '+' | '-' | '*' | '/' | '%' | '^' | /max/ | /min/ ;      \
+      expr      : <number>  | '(' <operator> <expr>+ ')' ;                 \
+      lispatron : /^/ <operator> <expr>+ /$/ ;                             \
     ",
    Number ,Operator, Expr, Lispatron);
 
@@ -98,11 +115,9 @@ int main(int argc, char** argv) {
       // on success print AST
       long result = eval(r.output);
       printf("%li\n", result);
+      // mpc_ast_print(r.output);
       mpc_ast_delete(r.output);
-      /*
-      mpc_ast_print(r.output);
-      mpc_ast_delete(r.output);
-      */
+
     } else {
       mpc_err_print(r.error);
       mpc_err_delete(r.error);

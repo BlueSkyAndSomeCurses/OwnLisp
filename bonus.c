@@ -36,14 +36,41 @@ typedef struct mpc_ast_t {
   struct mpc_ast_t** children;
 } mpc_ast_t;
 */
-long leaves(mpc_ast_t* t) {
+long branches(mpc_ast_t* t) {
   if (t->children_num==0) return 1;
   if (t->children_num>=1) {
     long total = 1; 
     for (int i = 0; i<t->children_num; ++i) {
+      total = total + branches(t->children[i]);
+    }
+    return total;
+  }
+  return 0;
+}
+
+long leaves(mpc_ast_t* t) {
+  if (t->children_num==0) return 1;
+  if (t->children_num>=1) {
+    long total = 0; 
+    for (int i = 0; i<t->children_num; ++i) {
       total = total + leaves(t->children[i]);
     }
     return total;
+  }
+  return 0;
+}
+
+long mostChild(mpc_ast_t* t) {
+  if (t->children_num==0) return 0;
+  if (t->children_num>=1) {
+    long maximal = t->children_num;
+    for (int i = 0; i<t->children_num; ++i) {
+      long tmp = mostChild(t->children[i]);
+      if (maximal < tmp) {
+        maximal = tmp;
+      }
+    }
+    return maximal;
   }
   return 0;
 }
@@ -109,9 +136,13 @@ int main(int argc, char** argv) {
     if (mpc_parse("<stdin>", input, Lispatron, &r)) {
       // on success print AST
       long result = eval(r.output);
+      long branch = branches(r.output)-1;
       long leaf = leaves(r.output);
+      long mostChildren = mostChild(r.output);
       printf("%li\n", result);
+      printf("Total amount of branches is: %li\n", branch);
       printf("Total amount of leaves is: %li\n", leaf);
+      printf("The node which contains the biggest number of children contains %li children\n", mostChildren);
       
       mpc_ast_print(r.output);
       mpc_ast_delete(r.output);
