@@ -36,46 +36,112 @@ void add_history(char* unused) {}
 // #include <editline/history.h>
 #endif
 
-long eval_op(long x, char* op, long y) {
-  if (strcmp(op, "+")==0) return x+y;
-  if (strcmp(op, "-")==0) return x-y;
-  if (strcmp(op, "*")==0) return x*y;
-  if (strcmp(op, "/")==0) return x/y;
-  if (strcmp(op, "%")==0) return x%y;
-  if (strcmp(op, "^")==0) {
-    long res = 1;
-    for (int i = 0; i<y; ++i) {
-      res *= x; 
-    }
-    return res;
-  }
-  if (strcmp(op, "max")==0) {
-    if (x>y) return x;
-    else return y;
-  }
-  if (strcmp(op, "min")==0) {
-    if (x<y) return x;
-    else return y;
-  }
-  return 0;
+// create enums (enumarations) for possible erros
+enum {LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM};
+
+// create enum types for lispatron values
+enum {LVAL_NUM, LVAL_ERR};
+
+// defining lval structure
+typedef struct {
+  int type;
+  long num;
+  int err;
+} lval;
+
+// function do define lval with number
+lval lval_num(long x) {
+  lval v;
+  v.type = LVAL_NUM;
+  v.num = x;
+  return v;
 }
 
-long eval(mpc_ast_t* t) {
+// function do define lval with error 
+lval lval_err(int x) {
+  lval v;
+  v.type = LVAL_ERR;
+  v.err = x;
+  return v;
+}
+
+// function to output lisp value
+void lval_print(lval v) {
+  switch (v.type) {
+
+    case LVAL_NUM: printf("%li", v.num); break;
+    
+    case LVAL_ERR:
+      if (v.err==LERR_DIV_ZERO) printf("Error: Division by zero!");
+      if (v.err==LERR_BAD_OP) printf("Error: Invalid operator!");
+      if (v.err==LERR_BAD_NUM) printf("Error: Invalid number!");
+    break;
+
+  }
+}
+
+void lval_println(lval v) { lval_print(v); putchar('\n'); }
+
+lval eval_op(lval x, char* op, lval y) {
+
+  // check for error types
+  if (x.type == LVAL_ERR) return x;
+  if (y.type == LVAL_ERR) return y;
+
+
+  if (strcmp(op, "+")==0) return lval_num(x.num + y.num);
+  if (strcmp(op, "-")==0) return lval_num(x.num - y.num);
+  if (strcmp(op, "*")==0) return lval_num(x.num * y.num);
+  if (strcmp(op, "/")==0) {
+    // printf("\n does it even happen \n");
+    return y.num == 0 
+      ? lval_err(LERR_DIV_ZERO)
+      : lval_num(x.num / y.num);
+  }
+  if (strcmp(op, "%")==0) return lval_num(x.num % y.num);
+  if (strcmp(op, "^")==0) {
+    long res = 1;
+    for (int i = 0; i<y.num; ++i) {
+      res *= x.num; 
+    }
+    return lval_num(res);
+  }
+  if (strcmp(op, "max")==0) {
+    if (x.num>y.num) return lval_num(x.num);
+    else return lval_num(y.num);
+  }
+  if (strcmp(op, "min")==0) {
+    if (x.num<y.num) return lval_num(x.num);
+    else return lval_num(y.num);
+  }
+  return lval_err(LERR_BAD_OP);
+}
+
+lval eval(mpc_ast_t* t) {
 
   //If tagged as number return it directly
   if (strstr(t->tag, "number")) {
-    return atoi(t->contents);
+    errno = 0;
+    long x = strtol(t->contents, NULL, 10);
+    // printf(" asdf %li", x);
+    return errno != ERANGE ? lval_num(x) : lval_err(LERR_BAD_NUM);
   }
 
   //The operator is always second child
   char* op = t->children[1]->contents;
+  // puts(op);
 
-  long x = eval(t->children[2]);
+  lval x = eval(t->children[2]);
+  // printf(" this is %li", x.num);
 
-  if (t->children_num==4) return -x;
+  if (t->children_num==4) {
+    x.num = -x.num;
+    return x;
+  };
 
   int i = 3;
   while(strstr(t->children[i]->tag, "expr")) {
+    // printf(" | last test: %li | ", eval(t->children[i]));
     x = eval_op(x, op, eval(t->children[i]));
     i++;
   }
@@ -113,8 +179,9 @@ int main(int argc, char** argv) {
     mpc_result_t r;
     if (mpc_parse("<stdin>", input, Lispatron, &r)) {
       // on success print AST
-      long result = eval(r.output);
-      printf("%li\n", result);
+      lval result = eval(r.output);
+      lval_println(result);
+
       // mpc_ast_print(r.output);
       mpc_ast_delete(r.output);
 

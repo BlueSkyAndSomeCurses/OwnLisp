@@ -1,3 +1,12 @@
+/*
+typedef struct mpc_ast_t {
+  char* tag;
+  char* contents;
+  mpc_state_t state;
+  int children_num;
+  struct mpc_ast_t** children;
+} mpc_ast_t;
+*/
 #include "mpc.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,77 +36,114 @@ void add_history(char* unused) {}
 // #include <editline/history.h>
 #endif
 
-/*
-typedef struct mpc_ast_t {
-  char* tag;
-  char* contents;
-  mpc_state_t state;
-  int children_num;
-  struct mpc_ast_t** children;
-} mpc_ast_t;
-*/
-long branches(mpc_ast_t* t) {
-  if (t->children_num==0) return 1;
-  if (t->children_num>=1) {
-    long total = 1; 
-    for (int i = 0; i<t->children_num; ++i) {
-      total = total + branches(t->children[i]);
-    }
-    return total;
+// create enums (enumarations) for possible erros
+enum {LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM};
+
+// create enum types for lispatron values
+enum {LVAL_NUM, LVAL_ERR};
+
+// defining lval structure
+typedef struct {
+  int type;
+  union {
+    long num;
+    int err;
+  } 
+} lval;
+
+// function do define lval with number
+lval lval_num(long x) {
+  lval v;
+  v.type = LVAL_NUM;
+  v.num = x;
+  return v;
+}
+
+// function do define lval with error 
+lval lval_err(int x) {
+  lval v;
+  v.type = LVAL_ERR;
+  v.err = x;
+  return v;
+}
+
+// function to output lisp value
+void lval_print(lval v) {
+  switch (v.type) {
+
+    case LVAL_NUM: printf("%li", v.num); break;
+    
+    case LVAL_ERR:
+      if (v.err==LERR_DIV_ZERO) printf("Error: Division by zero!");
+      if (v.err==LERR_BAD_OP) printf("Error: Invalid operator!");
+      if (v.err==LERR_BAD_NUM) printf("Error: Invalid number!");
+    break;
+
   }
-  return 0;
 }
 
-long leaves(mpc_ast_t* t) {
-  if (t->children_num==0) return 1;
-  if (t->children_num>=1) {
-    long total = 0; 
-    for (int i = 0; i<t->children_num; ++i) {
-      total = total + leaves(t->children[i]);
-    }
-    return total;
+void lval_println(lval v) { lval_print(v); putchar('\n'); }
+
+lval eval_op(lval x, char* op, lval y) {
+
+  // check for error types
+  if (x.type == LVAL_ERR) return x;
+  if (y.type == LVAL_ERR) return y;
+
+
+  if (strcmp(op, "+")==0) return lval_num(x.num + y.num);
+  if (strcmp(op, "-")==0) return lval_num(x.num - y.num);
+  if (strcmp(op, "*")==0) return lval_num(x.num * y.num);
+  if (strcmp(op, "/")==0) {
+    // printf("\n does it even happen \n");
+    return y.num == 0 
+      ? lval_err(LERR_DIV_ZERO)
+      : lval_num(x.num / y.num);
   }
-  return 0;
-}
-
-long mostChild(mpc_ast_t* t) {
-  if (t->children_num==0) return 0;
-  if (t->children_num>=1) {
-    long maximal = t->children_num;
-    for (int i = 0; i<t->children_num; ++i) {
-      long tmp = mostChild(t->children[i]);
-      if (maximal < tmp) {
-        maximal = tmp;
-      }
+  if (strcmp(op, "%")==0) return lval_num(x.num % y.num);
+  if (strcmp(op, "^")==0) {
+    long res = 1;
+    for (int i = 0; i<y.num; ++i) {
+      res *= x.num; 
     }
-    return maximal;
+    return lval_num(res);
   }
-  return 0;
+  if (strcmp(op, "max")==0) {
+    if (x.num>y.num) return lval_num(x.num);
+    else return lval_num(y.num);
+  }
+  if (strcmp(op, "min")==0) {
+    if (x.num<y.num) return lval_num(x.num);
+    else return lval_num(y.num);
+  }
+  return lval_err(LERR_BAD_OP);
 }
 
-long eval_op(long x, char* op, long y) {
-  if (strcmp(op, "+")==0) return x+y;
-  if (strcmp(op, "-")==0) return x-y;
-  if (strcmp(op, "*")==0) return x*y;
-  if (strcmp(op, "/")==0) return x/y;
-  return 0;
-}
-
-long eval(mpc_ast_t* t) {
+lval eval(mpc_ast_t* t) {
 
   //If tagged as number return it directly
   if (strstr(t->tag, "number")) {
-    return atoi(t->contents);
+    errno = 0;
+    long x = strtol(t->contents, NULL, 10);
+    // printf(" asdf %li", x);
+    return errno != ERANGE ? lval_num(x) : lval_err(LERR_BAD_NUM);
   }
 
   //The operator is always second child
   char* op = t->children[1]->contents;
+  // puts(op);
 
-  long x = eval(t->children[2]);
+  lval x = eval(t->children[2]);
+  // printf(" this is %li", x.num);
 
+  if (t->children_num==4) {
+    x.num = -x.num;
+    return x;
+  };
 
   int i = 3;
   while(strstr(t->children[i]->tag, "expr")) {
+    // printf(" | last test: %li | ", eval(t->children[i]));
     x = eval_op(x, op, eval(t->children[i]));
     i++;
   }
@@ -115,11 +161,11 @@ int main(int argc, char** argv) {
 
   //define them with the following language
   mpca_lang(MPCA_LANG_DEFAULT,
-    "                                                      \ 
-      number    : /-?[0-9]+/  ;                            \
-      operator  : '+' | '-' | '*' | '/' ;                  \
-      expr      : <number>  | '(' <operator> <expr>+ ')' ; \
-      lispatron : /^/ <operator> <expr>+ /$/ ;             \
+    "                                                                      \ 
+      number    : /-?[0-9]+/  ;                                            \
+      operator  : '+' | '-' | '*' | '/' | '%' | '^' | /max/ | /min/ ;      \
+      expr      : <number>  | '(' <operator> <expr>+ ')' ;                 \
+      lispatron : /^/ <operator> <expr>+ /$/ ;                             \
     ",
    Number ,Operator, Expr, Lispatron);
 
@@ -135,18 +181,12 @@ int main(int argc, char** argv) {
     mpc_result_t r;
     if (mpc_parse("<stdin>", input, Lispatron, &r)) {
       // on success print AST
-      long result = eval(r.output);
-      long branch = branches(r.output)-1;
-      long leaf = leaves(r.output);
-      long mostChildren = mostChild(r.output);
-      printf("%li\n", result);
-      printf("Total amount of branches is: %li\n", branch);
-      printf("Total amount of leaves is: %li\n", leaf);
-      printf("The node which contains the biggest number of children contains %li children\n", mostChildren);
-      
-      mpc_ast_print(r.output);
+      lval result = eval(r.output);
+      lval_println(result);
+
+      // mpc_ast_print(r.output);
       mpc_ast_delete(r.output);
-      
+
     } else {
       mpc_err_print(r.error);
       mpc_err_delete(r.error);
