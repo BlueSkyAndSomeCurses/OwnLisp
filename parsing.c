@@ -240,6 +240,8 @@ lval *builtin_list(lval *a);
 lval *builtin_join(lval *a);
 lval *builtin_eval(lval *a);
 lval *builtin_cons(lval *a);
+lval *builtin_len(lval *a);
+lval *builtin_init(lval *a);
 lval *builtin_op(lval *a, char *op);
 
 lval *builtin(lval *a, char *func) {
@@ -255,6 +257,10 @@ lval *builtin(lval *a, char *func) {
     return builtin_eval(a);
   if (strcmp("cons", func) == 0)
     return builtin_cons(a);
+  if (strcmp("len", func) == 0)
+    return builtin_len(a);
+  if (strcmp("init", func) == 0)
+    return builtin_init(a);
   if (strstr("+-/*%", func))
     return builtin_op(a, func);
   lval_del(a);
@@ -398,16 +404,45 @@ lval *builtin_cons(lval *a) {
   return a->cell[1];
   */
 
+  // also has a memoy leak but doesn't chrushes on 'cons 1 {1 2 3 4 5 6}'
   lval *x = lval_qexpr();
   x->count = a->cell[1]->count + 1;
-  x->cell = malloc(sizeof(lval *) * x->count);
-  printf("%ld\n", sizeof(lval *));
+  // x->cell = malloc(sizeof(lval) * x->count);
+  x->cell = realloc(x->cell, sizeof(lval) * x->count);
 
-  memmove(x->cell + 1, a->cell[1]->cell, sizeof(lval *) * a->cell[1]->count);
-  printf("%ld\n", sizeof(lval *));
+  memcpy(x->cell + 1, a->cell[1]->cell, sizeof(lval *) * a->cell[1]->count);
   x->cell[0] = lval_num(a->cell[0]->num);
 
   return x;
+
+  /* it also has memory leaks
+  lval *x = lval_qexpr();
+  lval_add(x, lval_num(a->cell[0]->num));
+  lval_join(x, a->cell[1]);
+
+  return x;
+  */
+}
+
+lval *builtin_len(lval *a) {
+  LASSERT(a, a->count != 0, "Function 'len' passed {}.");
+  LASSERT(a, a->count == 1, "Function 'len' passed too many arguments.");
+  LASSERT(a, a->cell[0]->type == LVAL_QEXPR,
+          "Function 'len' passed invalid arguments, it requires qexpression).");
+
+  return lval_num(a->cell[0]->count);
+}
+
+lval *builtin_init(lval *a) {
+  LASSERT(a, a->count != 0, "Function 'len' passed {}.");
+  LASSERT(a, a->count == 1, "Function 'len' passed too many arguments.");
+  LASSERT(a, a->cell[0]->type == LVAL_QEXPR,
+          "Function 'len' passed invalid arguments, it requires qexpression).");
+
+  a->cell[0]->count--;
+  lval_del(a->cell[0]->cell[a->cell[0]->count]);
+
+  return a;
 }
 
 lval *lval_join(lval *x, lval *y) {
@@ -472,10 +507,10 @@ int main(int argc, char **argv) {
   // define them with the following language
   mpca_lang(
       MPCA_LANG_DEFAULT,
-      "                                                                      \ 
+      "                                                                    \ 
       number    : /-?[0-9]+/  ;                                            \
       symbol    : \"list\" | \"head\" | \"tail\" | \"join\" | \"eval\"     \
-                | \"cons\"                                                 \
+                | \"cons\" | \"len\" | \"init\"                            \
                 | '+' | '-' | '*' | '/' | '%' | '^' | /max/ | /min/ ;      \
       sexpr     : '(' <expr>* ')' ;                                        \
       qexpr     : '{' <expr>* '}' ;                                        \
