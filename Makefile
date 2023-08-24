@@ -4,4 +4,4 @@ all: parsing.c
 
 bonus: bonus.c
 	cc -std=c99 -Wall bonus.c mpc.c -ledit -lm -o bonus
-	./bonus
+	# ./bonus

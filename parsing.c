@@ -410,7 +410,6 @@ lval *builtin_min(lenv *e, lval *a) { return builtin_op(e, a, "-"); }
 lval *builtin_mul(lenv *e, lval *a) { return builtin_op(e, a, "*"); }
 lval *builtin_div(lenv *e, lval *a) { return builtin_op(e, a, "/"); }
 lval *builtin_mod(lenv *e, lval *a) { return builtin_op(e, a, "%"); }
-// lval *lbuiltin_cons(lenv *e, lval *a) { return builtin_cons(e, a); }
 
 void lenv_add_builtin(lenv *e, char *name, lbuiltin func) {
   lval *k = lval_sym(name);
@@ -567,7 +566,7 @@ lval *builtin_join(lenv *e, lval *a) {
 }
 
 lval *builtin_cons(lenv *e, lval *a) {
-  LASSERT(a, a->cell[0]->count != 0, "Function 'cons' passed {}");
+  LASSERT(a, a->cell[1]->count != 0, "Function 'cons' passed {}");
   LASSERT(a, a->count != 1,
           "Function 'cons' passed invalid arguments. Got %d argument of %s "
           "type. Expected %d arguments of %s type",
@@ -613,7 +612,7 @@ lval *builtin_cons(lenv *e, lval *a) {
 }
 
 lval *builtin_len(lenv *e, lval *a) {
-  LASSERT(a, a->count != 0, "Function 'len' passed {}.");
+  LASSERT(a, a->cell[0]->count != 0, "Function 'len' passed {}.");
   LASSERT(a, a->count == 1,
           "Function 'len' passed too many arguments. Got %d. Expected %d.",
           a->count, 1);
@@ -625,7 +624,7 @@ lval *builtin_len(lenv *e, lval *a) {
 }
 
 lval *builtin_init(lenv *e, lval *a) {
-  LASSERT(a, a->cell[0]->count != 0, "Function 'len' passed {}.");
+  LASSERT(a, a->cell[0]->count != 0, "Function 'init' passed {}.");
   LASSERT(a, a->count == 1,
           "Function 'len' passed too many arguments. Got %d. Expected %d.",
           a->count, 1);
