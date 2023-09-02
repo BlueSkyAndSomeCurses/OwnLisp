@@ -247,7 +247,7 @@ void lval_del(lval *v) {
 
   case LVAL_QEXPR:
   case LVAL_SEXPR:
-    for (int i = 0; i < v->count; ++i) {
+    for (int i = 0; i < v->count; i++) {
       lval_del(v->cell[i]);
     }
     free(v->cell);
@@ -257,7 +257,7 @@ void lval_del(lval *v) {
 }
 
 void lenv_del(lenv *e) {
-  for (int i = 0; i < e->count; ++i) {
+  for (int i = 0; i < e->count; i++) {
     free(e->syms[i]);
     lval_del(e->vals[i]);
   }
@@ -287,7 +287,7 @@ lval *lval_read(mpc_ast_t *t) {
   if (strstr(t->tag, "qexpr"))
     x = lval_qexpr();
 
-  for (int i = 0; i < t->children_num; ++i) {
+  for (int i = 0; i < t->children_num; i++) {
     if (strcmp(t->children[i]->contents, "(") == 0)
       continue;
     if (strcmp(t->children[i]->contents, ")") == 0)
@@ -365,7 +365,7 @@ lval *lval_copy(lval *v) {
   case LVAL_QEXPR:
     x->count = v->count;
     x->cell = malloc(sizeof(lval *) * x->count);
-    for (int i = 0; i < x->count; ++i) {
+    for (int i = 0; i < x->count; i++) {
       x->cell[i] = lval_copy(v->cell[i]);
     }
     break;
@@ -390,7 +390,7 @@ lenv *lenv_copy(lenv *e) {
 }
 
 lval *lenv_get(lenv *e, lval *k) {
-  for (int i = 0; i < e->count; ++i) {
+  for (int i = 0; i < e->count; i++) {
     if (strcmp(e->syms[i], k->sym) == 0) {
       return lval_copy(e->vals[i]);
     }
@@ -406,7 +406,7 @@ lval *lenv_get(lenv *e, lval *k) {
 void lenv_def(lenv *e, lval *k, lval *v);
 
 void lenv_put(lenv *e, lval *k, lval *v) {
-  for (int i = 0; i < e->count; ++i) {
+  for (int i = 0; i < e->count; i++) {
     if (strcmp(e->syms[i], k->sym) == 0) {
       lval_del(e->vals[i]);
       e->vals[i] = lval_copy(v);
@@ -437,7 +437,7 @@ void lval_print(lval *v);
 void lval_expr_print(lval *v, char open, char close) {
   putchar(open);
 
-  for (int i = 0; i < v->count; ++i) {
+  for (int i = 0; i < v->count; i++) {
 
     lval_print(v->cell[i]);
 
@@ -458,7 +458,7 @@ void lval_print(lval *v) {
       lval_print(v->formals);
       putchar(' ');
       lval_print(v->body);
-      putchar(' ');
+      putchar(')');
     }
     break;
   case LVAL_NUM:
@@ -506,6 +506,7 @@ lval *builtin_var(lenv *e, lval *a, char *func);
 lval *builtin_comp(lenv *e, lval *a, char *op);
 lval *builtin_cmp(lenv *e, lval *a, char *op);
 lval *builtin_if(lenv *e, lval *a);
+lval *builtin_fun(lenv *e, lval *a);
 
 lval *lval_call(lenv *e, lval *f, lval *a) {
   if (f->builtin) {
@@ -568,9 +569,6 @@ lval *lval_call(lenv *e, lval *f, lval *a) {
   if (f->formals->count == 0) {
     f->env->par = e;
 
-    if (lval_copy(f->body)->type == LVAL_FUN)
-      printf("ok\n");
-
     return builtin_eval(e, lval_add(lval_sexpr(), lval_copy(f->body)));
   } else {
     return lval_copy(f);
@@ -608,6 +606,7 @@ void lenv_add_builtins(lenv *e) {
   lenv_add_builtin(e, "init", builtin_init);
 
   lenv_add_builtin(e, "def", builtin_def);
+  lenv_add_builtin(e, "fun", builtin_fun);
   lenv_add_builtin(e, "\\", builtin_lambda);
   lenv_add_builtin(e, "=", builtin_put);
   lenv_add_builtin(e, "if", builtin_if);
@@ -628,7 +627,7 @@ void lenv_add_builtins(lenv *e) {
 lval *builtin_op(lenv *e, lval *a, char *op) {
 
   // ensure all arguments are numbers
-  for (int i = 0; i < a->count; ++i) {
+  for (int i = 0; i < a->count; i++) {
     LASSERT(
         a, a->cell[i]->type == LVAL_NUM,
         "Function '%s' got incorrect type for arguments. Got %s. Expected %s.",
@@ -760,7 +759,7 @@ lval *builtin_eval(lenv *e, lval *a) {
 lval *lval_join(lval *x, lval *y);
 lval *builtin_join(lenv *e, lval *a) {
 
-  for (int i = 0; i < a->count; ++i) {
+  for (int i = 0; i < a->count; i++) {
     LASSERT(a, a->cell[i]->type == LVAL_QEXPR,
             "Function 'join' passed incorrect type. Got %s. Expected %s.",
             ltype_name(a->cell[i]->type), ltype_name(LVAL_QEXPR));
@@ -863,7 +862,7 @@ lval *builtin_var(lenv *e, lval *a, char *func) {
             func, ltype_name(syms->cell[i]->type), ltype_name(LVAL_SYM));
   }
 
-  LASSERT(a, syms->count = a->count - 1,
+  LASSERT(a, syms->count == a->count - 1,
           "Function '%s' passed too many arguments for symbols. Got %s. "
           "Expected %s.",
           func, syms->count, a->count - 1);
@@ -877,6 +876,19 @@ lval *builtin_var(lenv *e, lval *a, char *func) {
     }
   }
   lval_del(a);
+  return lval_sexpr();
+}
+
+lval *builtin_fun(lenv *e, lval *a) {
+
+  lval *sym = lval_pop(a->cell[0], 0);
+
+  lval *formals = lval_pop(a, 0);
+  lval *body = lval_pop(a, 0);
+
+  lenv_def(e, sym, lval_lambda(formals, body));
+  lval_del(a);
+
   return lval_sexpr();
 }
 
@@ -979,11 +991,11 @@ lval *lval_join(lval *x, lval *y) {
 lval *lval_eval_sexpr(lenv *e, lval *v) {
 
   // evaluate children
-  for (int i = 0; i < v->count; ++i) {
+  for (int i = 0; i < v->count; i++) {
     v->cell[i] = lval_eval(e, v->cell[i]);
   }
 
-  for (int i = 0; i < v->count; ++i) {
+  for (int i = 0; i < v->count; i++) {
     if (v->cell[i]->type == LVAL_ERR)
       return lval_take(v, i);
   }
